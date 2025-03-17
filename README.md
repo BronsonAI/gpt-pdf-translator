@@ -18,7 +18,11 @@ A powerful web application that translates PDF documents to various languages wh
 
 If you find this project useful, please consider giving it a star on GitHub! Your support helps make this project better.
 
-[![GitHub stars](https://img.shields.io/github/stars/hashirkz/pdf-translator.svg?style=social&label=Star)](https://github.com/hashirkz/pdf-translator)
+[![GitHub stars](https://img.shields.io/github/stars/Codehash001/gpt-pdf-translator.svg?style=social&label=Star)](https://github.com/Codehash001/gpt-pdf-translator)
+
+### Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Codehash001/gpt-pdf-translator&type=Date)](https://star-history.com/#Codehash001/gpt-pdf-translator&Date)
 
 ## 🤝 Contributing
 
@@ -30,7 +34,7 @@ Contributions are welcome and greatly appreciated! Here's how you can contribute
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-Feel free to check the [Issues](https://github.com/hashirkz/pdf-translator/issues) page for any open tasks or report bugs.
+Feel free to check the [Issues](https://github.com/Codehash001/gpt-pdf-translator/issues) page for any open tasks or report bugs.
 
 ## Translation Examples
 
@@ -69,8 +73,8 @@ The PDF Translator follows these steps:
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/hashirkz/pdf-translator.git
-cd pdf-translator
+git clone https://github.com/Codehash001/gpt-pdf-translator.git
+cd gpt-pdf-translator
 ```
 
 2. Install the required dependencies:
