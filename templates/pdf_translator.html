@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Translator</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4285f4;
+            --primary-dark: #3367d6;
+            --success-color: #0f9d58;
+            --warning-color: #f4b400;
+            --error-color: #db4437;
+            --text-color: #333;
+            --text-light: #666;
+            --background-color: #f5f5f5;
+            --card-color: #fff;
+            --border-color: #ddd;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        .app-bar {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            box-shadow: var(--shadow);
+        }
+        
+        .app-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background-color: white;
+            border-radius: 50%;
+            margin-right: 16px;
+        }
+        
+        .app-logo i {
+            color: var(--primary-color);
+            font-size: 24px;
+        }
+        
+        .app-title {
+            font-size: 20px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        .card {
+            background-color: var(--card-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .card-title {
+            font-size: 24px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--primary-color);
+        }
+        
+        .card-subtitle {
+            font-size: 16px;
+            color: var(--text-light);
+            margin-bottom: 24px;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .form-help {
+            font-size: 14px;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+        
+        .file-input-container {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .file-input-container:hover {
+            border-color: var(--primary-color);
+            background-color: rgba(66, 133, 244, 0.05);
+        }
+        
+        .file-input-container i {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 16px;
+        }
+        
+        .file-input-text {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .file-input-hint {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+        
+        .file-input {
+            position: absolute;
+            width: 0;
+            height: 0;
+            opacity: 0;
+        }
+        
+        .selected-file {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background-color: rgba(66, 133, 244, 0.1);
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+        
+        .selected-file i {
+            font-size: 24px;
+            color: var(--primary-color);
+            margin-right: 12px;
+        }
+        
+        #selectedFileName {
+            flex-grow: 1;
+            font-weight: 500;
+            margin-right: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .remove-file-btn {
+            background-color: transparent;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-light);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 0;
+        }
+        
+        .remove-file-btn:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            color: var(--error-color);
+        }
+        
+        .remove-file-btn i {
+            font-size: 20px;
+            margin-right: 0;
+        }
+        
+        .language-search-container {
+            position: relative;
+            width: 100%;
+        }
+        
+        .language-search-container input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            color: var(--text-color);
+            background-color: white;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+        
+        .language-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background-color: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            display: none;
+            z-index: 1000;
+            max-height: 300px;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .language-dropdown.show {
+            display: block;
+        }
+        
+        .language-dropdown ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        
+        .language-dropdown li {
+            padding: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .language-dropdown li:hover {
+            background-color: rgba(66, 133, 244, 0.1);
+        }
+        
+        .language-dropdown li.selected {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .button i {
+            margin-right: 8px;
+        }
+        
+        .button-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .button-primary:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .button-primary:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
+        
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .progress-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-top: 24px;
+            overflow: hidden;
+        }
+        
+        .progress-container.hidden {
+            display: none;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #f8f9fa;
+        }
+        
+        .progress-header h3 {
+            margin: 0;
+            font-size: 18px;
+            color: var(--text-color);
+        }
+        
+        .progress-header .close-btn {
+            background-color: transparent;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+        
+        .progress-header .close-btn:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        .progress-header .close-btn i {
+            font-size: 24px;
+            color: var(--text-color);
+        }
+        
+        .progress-content {
+            padding: 24px;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-status {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: var(--text-light);
+        }
+        
+        .progress-message {
+            font-size: 16px;
+            color: var(--text-color);
+            margin-top: 16px;
+        }
+        
+        .success-message, .error-message {
+            text-align: center;
+            padding: 16px;
+        }
+        
+        .success-icon, .error-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .success-icon {
+            color: var(--success-color);
+        }
+        
+        .error-icon {
+            color: var(--error-color);
+        }
+        
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .result-container {
+            margin-top: 24px;
+            text-align: center;
+        }
+        
+        .result-icon {
+            font-size: 48px;
+            color: var(--success-color);
+            margin-bottom: 16px;
+        }
+        
+        .result-title {
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .result-message {
+            font-size: 16px;
+            color: var(--text-light);
+            margin-bottom: 24px;
+        }
+        
+        .result-actions {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+        }
+    </style>
+</head>
+<body>
+    <header class="app-bar">
+        <div class="app-title">
+            <div class="app-logo">
+                <i class="material-icons-round">translate</i>
+            </div>
+            PDF Translator
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="card">
+            <h2 class="card-title">Translate PDF Document</h2>
+            <p class="card-subtitle">Upload a PDF file and select a target language to translate the content.</p>
+            
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="fileInput" class="form-label">PDF File</label>
+                    <div class="file-input-container" id="fileInputContainer">
+                        <i class="material-icons-round">upload_file</i>
+                        <p class="file-input-text">Drag & drop a PDF file here or click to browse</p>
+                        <p class="file-input-hint">Supported format: PDF</p>
+                        <input type="file" id="fileInput" name="file" class="file-input" accept=".pdf" required>
+                    </div>
+                    <div class="selected-file hidden" id="selectedFile">
+                        <i class="material-icons-round">description</i>
+                        <span id="selectedFileName">No file selected</span>
+                        <button type="button" id="removeFile" class="remove-file-btn">
+                            <i class="material-icons-round">close</i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="targetLanguage" class="form-label">Translate to</label>
+                    <div class="language-search-container">
+                        <input type="text" id="languageSearch" class="form-input" placeholder="Search languages..." autocomplete="off">
+                        <div class="language-dropdown">
+                            <select id="targetLanguage" name="target_language" class="language-select" required>
+                                <option value="" disabled selected>Select a language</option>
+                                {% for code, name in languages.items() %}
+                                <option value="{{ code }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                            <ul></ul>
+                        </div>
+                    </div>
+                    <p class="form-help">Select the language you want to translate the PDF content to</p>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="button button-primary" id="translateButton" disabled>
+                        <i class="material-icons-round">translate</i>
+                        Translate PDF
+                    </button>
+                </div>
+            </form>
+            
+            <div class="progress-container hidden" id="progressContainer">
+                <div class="progress-header">
+                    <h3>Translating PDF</h3>
+                    <button class="close-btn" id="cancelTranslationBtn">
+                        <i class="material-icons-round">close</i>
+                    </button>
+                </div>
+                <div class="progress-content">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-status">
+                        <span id="progressPercent">0%</span>
+                        <span id="progressStage">Initializing...</span>
+                    </div>
+                    <p class="progress-message" id="progressMessage">Preparing to translate your PDF...</p>
+                </div>
+            </div>
+            
+            <div class="result-container hidden" id="resultContainer">
+                <i class="material-icons-round result-icon">check_circle</i>
+                <h3 class="result-title">Translation Complete!</h3>
+                <p class="result-message">Your PDF has been successfully translated.</p>
+                <div class="result-actions">
+                    <a href="#" class="button button-primary" id="downloadButton">
+                        <i class="material-icons-round">download</i>
+                        Download Translated PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('fileInput');
+            const fileInputContainer = document.getElementById('fileInputContainer');
+            const selectedFile = document.getElementById('selectedFile');
+            const selectedFileName = document.getElementById('selectedFileName');
+            const removeFile = document.getElementById('removeFile');
+            const translateButton = document.getElementById('translateButton');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressStage = document.getElementById('progressStage');
+            const progressMessage = document.getElementById('progressMessage');
+            const cancelTranslationBtn = document.getElementById('cancelTranslationBtn');
+            
+            // Language search functionality
+            const languageSearch = document.getElementById('languageSearch');
+            const targetLanguage = document.getElementById('targetLanguage');
+            const languageDropdown = document.querySelector('.language-dropdown');
+            
+            // Create a list of languages for the searchable dropdown
+            const languageOptions = Array.from(targetLanguage.options).slice(1); // Skip the first disabled option
+            
+            // Hide the original select element
+            targetLanguage.style.display = 'none';
+            
+            // Initialize with placeholder text
+            if (languageOptions.length > 0) {
+                languageSearch.placeholder = "Search from " + languageOptions.length + " languages...";
+            }
+            
+            // Show dropdown when focusing on search input
+            languageSearch.addEventListener('focus', () => {
+                languageDropdown.classList.add('show');
+                populateLanguageList(languageOptions);
+            });
+            
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.language-search-container')) {
+                    languageDropdown.classList.remove('show');
+                }
+            });
+            
+            // Filter languages based on search input
+            languageSearch.addEventListener('input', () => {
+                const searchTerm = languageSearch.value.toLowerCase();
+                const filteredOptions = languageOptions.filter(option => 
+                    option.text.toLowerCase().includes(searchTerm)
+                );
+                populateLanguageList(filteredOptions);
+                
+                // Always show dropdown when typing
+                languageDropdown.classList.add('show');
+            });
+            
+            // Populate the language list with filtered options
+            function populateLanguageList(options) {
+                // Get the language list element
+                let languageList = languageDropdown.querySelector('ul');
+                
+                // Create the list if it doesn't exist
+                if (!languageList) {
+                    languageList = document.createElement('ul');
+                    languageDropdown.appendChild(languageList);
+                }
+                
+                languageList.innerHTML = '';
+                
+                if (options.length === 0) {
+                    const noResults = document.createElement('li');
+                    noResults.textContent = 'No languages found';
+                    languageList.appendChild(noResults);
+                    return;
+                }
+                
+                options.forEach(option => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = option.text;
+                    listItem.dataset.value = option.value;
+                    
+                    listItem.addEventListener('click', () => {
+                        // Update the hidden select element
+                        targetLanguage.value = option.value;
+                        
+                        // Update the search input to show the selected language
+                        languageSearch.value = option.text;
+                        
+                        // Hide the dropdown
+                        languageDropdown.classList.remove('show');
+                    });
+                    
+                    languageList.appendChild(listItem);
+                });
+            }
+            
+            // Handle file drag and drop
+            fileInputContainer.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('dragover');
+            });
+            
+            fileInputContainer.addEventListener('dragleave', function() {
+                this.classList.remove('dragover');
+            });
+            
+            fileInputContainer.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    handleFileSelect(files[0]);
+                }
+            });
+            
+            // Handle file selection via input
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files.length > 0) {
+                    handleFileSelect(fileInput.files[0]);
+                }
+            });
+            
+            // Make the entire container clickable to trigger file input
+            fileInputContainer.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            // Handle file selection
+            function handleFileSelect(file) {
+                if (file.type !== 'application/pdf') {
+                    alert('Please select a PDF file.');
+                    fileInput.value = '';
+                    return;
+                }
+                
+                // Update UI to show selected file
+                selectedFileName.textContent = file.name;
+                fileInputContainer.classList.add('hidden');
+                selectedFile.classList.remove('hidden');
+                translateButton.disabled = false;
+            }
+            
+            // Remove selected file
+            removeFile.addEventListener('click', function() {
+                fileInput.value = '';
+                selectedFile.classList.add('hidden');
+                fileInputContainer.classList.remove('hidden');
+                translateButton.disabled = true;
+            });
+            
+            // Form submission and progress tracking
+            document.getElementById('uploadForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (fileInput.files.length === 0) {
+                    alert('Please select a PDF file first.');
+                    return;
+                }
+                
+                // Show progress container
+                progressContainer.classList.remove('hidden');
+                
+                // Reset progress indicators
+                progressFill.style.width = '0%';
+                progressPercent.textContent = '0%';
+                progressStage.textContent = 'Initializing...';
+                progressMessage.textContent = 'Preparing to translate your PDF...';
+                
+                // Create FormData object
+                const formData = new FormData(this);
+                
+                // Submit the form via fetch
+                fetch('/translate-pdf', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Get task ID from response
+                    const taskId = data.task_id;
+                    console.log("Translation task started with ID:", taskId);
+                    
+                    // Set up WebSocket connection for real-time progress updates
+                    const ws = new WebSocket(`ws://${window.location.host}/ws/progress/${taskId}`);
+                    
+                    ws.onopen = function() {
+                        console.log("WebSocket connection established");
+                    };
+                    
+                    ws.onmessage = function(event) {
+                        const progressData = JSON.parse(event.data);
+                        console.log("Progress update received:", progressData);
+                        
+                        // Update progress bar and text
+                        if (progressData.progress !== undefined) {
+                            const percent = Math.round(progressData.progress);
+                            progressFill.style.width = `${percent}%`;
+                            progressPercent.textContent = `${percent}%`;
+                        }
+                        
+                        if (progressData.message) {
+                            progressMessage.textContent = progressData.message;
+                        }
+                        
+                        // Update stage if available
+                        if (progressData.status) {
+                            if (progressData.status === 'extracting') {
+                                progressStage.textContent = 'Extracting text...';
+                            } else if (progressData.status === 'translating') {
+                                progressStage.textContent = 'Translating...';
+                            } else if (progressData.status === 'generating') {
+                                progressStage.textContent = 'Generating PDF...';
+                            }
+                        }
+                        
+                        // If translation is complete, show download link
+                        if (progressData.status === 'completed') {
+                            // Create success message
+                            const successMessage = document.createElement('div');
+                            successMessage.className = 'success-message';
+                            successMessage.innerHTML = `
+                                <i class="material-icons-round success-icon">check_circle</i>
+                                <h3>Translation Complete!</h3>
+                                <p>Your PDF has been successfully translated.</p>
+                            `;
+                            
+                            // Create download button
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = `/download-pdf/${taskId}`;
+                            downloadLink.className = 'button button-primary';
+                            downloadLink.innerHTML = '<div class="material-icons-round">download</div> Download Translated PDF';
+                            downloadLink.download = '';
+                            
+                            // Create button container
+                            const buttonContainer = document.createElement('div');
+                            buttonContainer.className = 'button-container';
+                            buttonContainer.appendChild(downloadLink);
+                            
+                            // Clear progress content and add success message and buttons
+                            const progressContent = progressContainer.querySelector('.progress-content');
+                            progressContent.innerHTML = '';
+                            progressContent.appendChild(successMessage);
+                            progressContent.appendChild(buttonContainer);
+                            
+                            // Update header
+                            const progressHeader = progressContainer.querySelector('.progress-header h3');
+                            progressHeader.textContent = 'Translation Complete';
+                            
+                            // Close WebSocket connection
+                            ws.close();
+                        }
+                        
+                        // If there was an error, show error message
+                        if (progressData.status === 'error') {
+                            // Create error message
+                            const errorMessage = document.createElement('div');
+                            errorMessage.className = 'error-message';
+                            errorMessage.innerHTML = `
+                                <i class="material-icons-round error-icon">error</i>
+                                <h3>Translation Error</h3>
+                                <p>${progressData.message || 'An error occurred during translation.'}</p>
+                            `;
+                            
+                            // Create close button
+                            const closeBtn = document.createElement('button');
+                            closeBtn.className = 'button button-secondary';
+                            closeBtn.innerHTML = '<i class="material-icons-round">close</i> Close';
+                            closeBtn.onclick = function() {
+                                progressContainer.classList.add('hidden');
+                            };
+                            
+                            // Create button container
+                            const buttonContainer = document.createElement('div');
+                            buttonContainer.className = 'button-container';
+                            buttonContainer.appendChild(closeBtn);
+                            
+                            // Clear progress content and add error message and button
+                            const progressContent = progressContainer.querySelector('.progress-content');
+                            progressContent.innerHTML = '';
+                            progressContent.appendChild(errorMessage);
+                            progressContent.appendChild(buttonContainer);
+                            
+                            // Update header
+                            const progressHeader = progressContainer.querySelector('.progress-header h3');
+                            progressHeader.textContent = 'Translation Error';
+                            
+                            // Close WebSocket connection
+                            ws.close();
+                        }
+                    };
+                    
+                    ws.onerror = function(error) {
+                        console.error("WebSocket error:", error);
+                        progressMessage.textContent = "Error connecting to server for progress updates.";
+                    };
+                    
+                    ws.onclose = function() {
+                        console.log("WebSocket connection closed");
+                    };
+                    
+                    // Handle cancel button click
+                    cancelTranslationBtn.onclick = function() {
+                        if (confirm("Are you sure you want to cancel the translation?")) {
+                            // Close WebSocket connection
+                            ws.close();
+                            
+                            // Hide progress container
+                            progressContainer.classList.add('hidden');
+                            
+                            // Send cancel request to server
+                            fetch(`/cancel-translation/${taskId}`, {
+                                method: 'POST'
+                            }).catch(error => {
+                                console.error("Error cancelling translation:", error);
+                            });
+                        }
+                    };
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    
+                    // Show error message
+                    const errorMessage = document.createElement('div');
+                    errorMessage.className = 'error-message';
+                    errorMessage.innerHTML = `
+                        <i class="material-icons-round error-icon">error</i>
+                        <h3>Translation Error</h3>
+                        <p>${error.message || 'An error occurred while starting the translation.'}</p>
+                    `;
+                    
+                    // Create close button
+                    const closeBtn = document.createElement('button');
+                    closeBtn.className = 'button button-secondary';
+                    closeBtn.innerHTML = '<i class="material-icons-round">close</i> Close';
+                    closeBtn.onclick = function() {
+                        progressContainer.classList.add('hidden');
+                    };
+                    
+                    // Create button container
+                    const buttonContainer = document.createElement('div');
+                    buttonContainer.className = 'button-container';
+                    buttonContainer.appendChild(closeBtn);
+                    
+                    // Clear progress content and add error message and button
+                    const progressContent = progressContainer.querySelector('.progress-content');
+                    progressContent.innerHTML = '';
+                    progressContent.appendChild(errorMessage);
+                    progressContent.appendChild(buttonContainer);
+                    
+                    // Update header
+                    const progressHeader = progressContainer.querySelector('.progress-header h3');
+                    progressHeader.textContent = 'Translation Error';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
