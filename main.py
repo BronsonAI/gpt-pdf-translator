@@ -197,7 +197,7 @@ def translate_text(text, target_language):
         "messages": [
             {
                 "role": "system",
-                "content": f"You are a professional translator. Translate the following text to {LANGUAGES.get(target_language, target_language)}. Preserve all formatting, line breaks, and special characters. Only respond with the translated text, nothing else."
+                "content": f"You are a professional translator. Translate the following text to {LANGUAGES.get(target_language, target_language)}. IMPORTANT: Preserve all numbers, numerical values, dates, times, formatting, line breaks, and special characters exactly as they appear in the original text. Only respond with the translated text, nothing else."
             },
             {
                 "role": "user",
@@ -285,7 +285,7 @@ def batch_translate(texts, target_language, batch_size=10, task_id=None):
                 "progress": progress,
                 "message": message
             })
-        
+    
     print(f"\n[Translation] Completed translation of {len(texts)} text blocks")
     return translated_texts
 
@@ -540,7 +540,7 @@ def translate_pdf_directly(input_pdf_path, target_language, task_id=None):
 
 def extract_text_blocks(page):
     """
-    Extract text blocks from a PDF page.
+    Extract text blocks from a PDF page with enhanced detection for special content.
     
     Args:
         page (fitz.Page): PDF page object
@@ -564,13 +564,27 @@ def extract_text_blocks(page):
                         is_bold = "bold" in font_name.lower() or span["flags"] & 2 != 0
                         is_italic = "italic" in font_name.lower() or "oblique" in font_name.lower() or span["flags"] & 1 != 0
                         
-                        # Create a text block
+                        # Enhanced detection for special content
+                        # Check for numbers, currency symbols, postal codes, phone numbers, etc.
+                        contains_digits = any(char.isdigit() for char in text)
+                        contains_special_chars = any(char in text for char in "#$€£¥%&*()+-/:;,.@")
+                        is_likely_code = bool(re.search(r'[A-Z0-9]{3,}', text))  # Postal codes, product codes, etc.
+                        is_likely_phone = bool(re.search(r'[\d\(\)\-\+\s]{7,}', text))  # Phone numbers
+                        is_likely_price = bool(re.search(r'[\$€£¥]?\s?\d+[.,]?\d*', text))  # Prices
+                        
+                        # Flag this as special content if any of the above conditions are met
+                        is_special_content = (contains_digits or contains_special_chars or 
+                                             is_likely_code or is_likely_phone or is_likely_price)
+                        
+                        # Create a text block with enhanced metadata
                         text_block = {
                             "text": text,
                             "bbox": (x0, y0, x1, y1),
                             "font_size": font_size,
                             "is_bold": is_bold,
-                            "is_italic": is_italic
+                            "is_italic": is_italic,
+                            "is_special_content": is_special_content,
+                            "page": page.number  # Store page number for multi-page processing
                         }
                         
                         text_blocks.append(text_block)
@@ -579,7 +593,7 @@ def extract_text_blocks(page):
 
 def create_translated_pdf(input_pdf_path, output_pdf_path, text_blocks, translated_texts):
     """
-    Create a translated PDF by replacing text in the original PDF.
+    Create a translated PDF by replacing text in the original PDF with enhanced handling for special content.
     
     Args:
         input_pdf_path (str): Path to the input PDF file
@@ -613,11 +627,36 @@ def create_translated_pdf(input_pdf_path, output_pdf_path, text_blocks, translat
     # Make sure we have translations for all text blocks
     for i, block in enumerate(text_only_blocks):
         if i < len(translated_texts):
-            translation_map[block["text"]] = translated_texts[i]
+            # Special handling for blocks with special content
+            if block.get("is_special_content", False):
+                # For blocks with special content, use our enhanced preservation function
+                original_text = block["text"]
+                translated_text = translated_texts[i]
+                
+                # If the block is purely numerical or special characters, keep it as is
+                if re.match(r'^[\d\s\(\)\+\-\#\$\€\£\¥\%\&\*\/\:\;\,\.\@]+$', original_text):
+                    translation_map[original_text] = original_text
+                    print(f"Preserving numerical/special block as is: {original_text}")
+                else:
+                    # Otherwise use our special content preservation function
+                    preserved_text = preserve_special_content(original_text, translated_text)
+                    translation_map[original_text] = preserved_text
+                    print(f"Applied special content preservation: '{original_text}' -> '{preserved_text}'")
+            else:
+                # For regular text, use the translation as is
+                translation_map[block["text"]] = translated_texts[i]
         else:
             # If we somehow have fewer translations than blocks, use original text
             translation_map[block["text"]] = block["text"]
             print(f"Warning: Missing translation for block: {block['text']}")
+    
+    # Group text blocks by page
+    blocks_by_page = {}
+    for block in text_blocks:
+        page_num = block.get("page", 0)
+        if page_num not in blocks_by_page:
+            blocks_by_page[page_num] = []
+        blocks_by_page[page_num].append(block)
     
     # Process each page
     for page_num in range(pdf_document.page_count):
@@ -627,9 +666,9 @@ def create_translated_pdf(input_pdf_path, output_pdf_path, text_blocks, translat
         original_page = pdf_document[page_num]
         
         # Get text blocks for this page
-        page_blocks = [block for block in text_blocks if block.get("page") == page_num]
+        page_blocks = blocks_by_page.get(page_num, [])
         
-        # Cover original text with background-colored rectangles and add translated text
+        # First pass: Cover all original text with background-colored rectangles
         for block in page_blocks:
             if not block["text"].strip():
                 continue  # Skip empty blocks
@@ -639,18 +678,25 @@ def create_translated_pdf(input_pdf_path, output_pdf_path, text_blocks, translat
             
             # Detect the background color for this text block
             bg_color = detect_background_color(original_page, rect)
-            print(f"Detected background color for text '{block['text'][:20]}...': {bg_color}")
             
             # Cover original text with detected background color rectangle
-            translated_page.draw_rect(rect, color=bg_color, fill=bg_color)
+            # Make the rectangle slightly larger to ensure complete coverage
+            expanded_rect = fitz.Rect(rect.x0 - 1, rect.y0 - 1, rect.x1 + 1, rect.y1 + 1)
+            translated_page.draw_rect(expanded_rect, color=bg_color, fill=bg_color)
+        
+        # Second pass: Add translated text with proper formatting
+        for block in page_blocks:
+            if not block["text"].strip():
+                continue  # Skip empty blocks
+                
+            # Get the rectangle for this text block
+            rect = fitz.Rect(block["bbox"])
             
-            # Add translated text if available
-            text = translation_map.get(block["text"], block["text"])
+            # Get translated text
+            original_text = block["text"]
+            text = translation_map.get(original_text, original_text)
             
             try:
-                # Create a TextWriter object for more reliable text insertion
-                tw = fitz.TextWriter(translated_page.rect)
-                
                 # Determine font properties
                 font_name = "helv"  # Use the default Helvetica font
                 if block["is_bold"] and block["is_italic"]:
@@ -662,93 +708,134 @@ def create_translated_pdf(input_pdf_path, output_pdf_path, text_blocks, translat
                 else:
                     font = fitz.Font("helv")
                 
-                # Calculate available width for text
+                # Calculate available space
                 available_width = rect.width
+                available_height = rect.height
+                original_font_size = block["font_size"]
                 
-                # Handle text wrapping if needed
-                if len(text) > 5:  # Only process wrapping for non-trivial text
-                    # Estimate character width (approximate)
-                    char_width = block["font_size"] * 0.6
+                # Check if this is special content
+                is_special = block.get("is_special_content", False)
+                
+                # For very short text (like single words or numbers), keep original size and positioning
+                if len(text) <= 5 or is_special:
+                    # For special content or short text, try to maintain original size but check if it fits
+                    text_width = font.text_length(text, original_font_size)
                     
-                    # Calculate approximate characters per line
-                    chars_per_line = int(available_width / char_width)
-                    
-                    if chars_per_line > 0:
-                        # Simple word wrapping algorithm
-                        words = text.split()
-                        lines = []
-                        current_line = []
-                        current_length = 0
-                        
-                        for word in words:
-                            # Add word length plus a space
-                            word_length = len(word) + 1
-                            
-                            if current_length + word_length <= chars_per_line:
-                                current_line.append(word)
-                                current_length += word_length
-                            else:
-                                if current_line:  # Add the current line if it's not empty
-                                    lines.append(' '.join(current_line))
-                                current_line = [word]
-                                current_length = word_length
-                        
-                        # Add the last line
-                        if current_line:
-                            lines.append(' '.join(current_line))
-                        
-                        # Now add each line with proper positioning
-                        for i, line in enumerate(lines):
-                            line_y = rect.y0 + (i * block["font_size"] * 1.2)
-                            
-                            # Make sure we don't go beyond the bottom of the original text block
-                            if line_y + block["font_size"] <= rect.y1:
-                                tw.append(
-                                    fitz.Point(rect.x0, line_y + (block["font_size"] * 0.8)),
-                                    line,
-                                    font=font,
-                                    fontsize=block["font_size"]
-                                )
+                    if text_width <= available_width * 1.1:  # Allow 10% overflow
+                        # Text fits with original size
+                        font_size = original_font_size
                     else:
-                        # Fallback for very narrow blocks
-                        tw.append(
-                            fitz.Point(rect.x0, rect.y0 + (block["font_size"] * 0.8)),
-                            text,
-                            font=font,
-                            fontsize=block["font_size"]
-                        )
+                        # Text doesn't fit, scale it down
+                        scale_factor = (available_width * 0.95) / text_width  # Use 95% of available width
+                        font_size = max(original_font_size * scale_factor, original_font_size * 0.7)  # Don't go below 70%
+                    
+                    # Add text at original position with calculated font size
+                    translated_page.insert_text(
+                        fitz.Point(rect.x0, rect.y0 + (font_size * 0.8)),
+                        text,
+                        fontname=font_name,
+                        fontsize=font_size,
+                        color=(0, 0, 0)  # Black text
+                    )
                 else:
-                    # For very short text, no need for wrapping
-                    tw.append(
+                    # For longer text, use advanced text wrapping
+                    # Calculate optimal font size based on available space and text length
+                    # Start with original font size
+                    font_size = original_font_size
+                    
+                    # Estimate how many characters can fit on one line
+                    avg_char_width = font.text_length("abcdefghijklmnopqrstuvwxyz", font_size) / 26
+                    chars_per_line = int(available_width / avg_char_width)
+                    
+                    # Estimate how many lines we need
+                    estimated_lines = max(1, len(text) / chars_per_line)
+                    
+                    # Calculate line height
+                    line_height = font_size * 1.2
+                    
+                    # Check if text will fit vertically
+                    if estimated_lines * line_height > available_height * 1.2:  # Allow 20% overflow
+                        # Need to reduce font size to fit vertically
+                        vertical_scale = (available_height * 1.1) / (estimated_lines * line_height)
+                        font_size = max(font_size * vertical_scale, font_size * 0.65)  # Don't go below 65%
+                        line_height = font_size * 1.2
+                    
+                    # Wrap text to fit available width with new font size
+                    wrapped_text = wrap_text(text, font, font_size, available_width)
+                    
+                    # Add each line of wrapped text
+                    for i, line in enumerate(wrapped_text):
+                        y_pos = rect.y0 + (i * line_height)
+                        
+                        # Only add text if it's within or slightly below the block
+                        if y_pos + font_size <= rect.y1 + (available_height * 0.3):  # Allow 30% overflow
+                            translated_page.insert_text(
+                                fitz.Point(rect.x0, y_pos + (font_size * 0.8)),
+                                line,
+                                fontname=font_name,
+                                fontsize=font_size,
+                                color=(0, 0, 0)  # Black text
+                            )
+            
+            except Exception as e:
+                print(f"Error adding text for block '{original_text[:20]}...': {str(e)}")
+                # Fallback: just add text at original position with original size
+                try:
+                    translated_page.insert_text(
                         fitz.Point(rect.x0, rect.y0 + (block["font_size"] * 0.8)),
                         text,
-                        font=font,
-                        fontsize=block["font_size"]
-                    )
-                
-                # Write the text to the page
-                tw.write_text(translated_page)
-                
-            except Exception as e:
-                # Fallback method if TextWriter fails
-                print(f"Text insertion error: {str(e)}. Using fallback method.")
-                try:
-                    # Simple text insertion as fallback
-                    text_point = fitz.Point(rect.x0, rect.y0 + (block["font_size"] * 0.8))
-                    translated_page.insert_text(
-                        text_point,
-                        text,
-                        fontname="helv",  # Default font
+                        fontname="helv",
                         fontsize=block["font_size"],
                         color=(0, 0, 0)  # Black text
                     )
                 except Exception as e2:
-                    print(f"Fallback text insertion failed: {str(e2)}")
+                    print(f"Fallback text insertion also failed: {str(e2)}")
     
     # Save the translated PDF
     translated_pdf.save(output_pdf_path)
     translated_pdf.close()
     pdf_document.close()
+    
+    print(f"Translated PDF saved to: {output_pdf_path}")
+
+def wrap_text(text, font, font_size, max_width):
+    """
+    Wrap text to fit within a specified width.
+    
+    Args:
+        text (str): Text to wrap
+        font (fitz.Font): Font object
+        font_size (float): Font size
+        max_width (float): Maximum width in points
+        
+    Returns:
+        list: List of wrapped text lines
+    """
+    words = text.split()
+    lines = []
+    current_line = []
+    current_width = 0
+    
+    for word in words:
+        # Calculate word width including a space
+        word_width = font.text_length(word + " ", font_size)
+        
+        if current_width + word_width <= max_width:
+            # Word fits on current line
+            current_line.append(word)
+            current_width += word_width
+        else:
+            # Word doesn't fit, start a new line
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+            current_width = word_width
+    
+    # Add the last line if not empty
+    if current_line:
+        lines.append(" ".join(current_line))
+    
+    return lines
 
 def detect_background_color(page, rect):
     """
@@ -796,6 +883,67 @@ def detect_background_color(page, rect):
     except Exception as e:
         print(f"Error detecting background color: {str(e)}")
         return (1, 1, 1)  # Default to white on error
+
+def preserve_special_content(original_text, translated_text):
+    """
+    Advanced function to preserve special content (numbers, codes, prices, etc.) from the original text in the translated text.
+    
+    Args:
+        original_text (str): Original text
+        translated_text (str): Translated text
+        
+    Returns:
+        str: Translated text with preserved special content
+    """
+    # If the original text is entirely special content (just numbers or codes), return it unchanged
+    if re.match(r'^[\d\s\(\)\+\-\#\$\€\£\¥\%\&\*\/\:\;\,\.\@]+$', original_text):
+        return original_text
+    
+    # Extract special content patterns from original text
+    special_patterns = []
+    
+    # Find postal codes (e.g., VIC 3000)
+    postal_codes = re.findall(r'\b[A-Z]{2,3}\s?\d{3,5}\b', original_text)
+    special_patterns.extend(postal_codes)
+    
+    # Find invoice/reference numbers (e.g., #20130304)
+    invoice_numbers = re.findall(r'#\d+', original_text)
+    special_patterns.extend(invoice_numbers)
+    
+    # Find prices (e.g., $39.60)
+    prices = re.findall(r'[\$€£¥]\s?\d+[.,]?\d*', original_text)
+    special_patterns.extend(prices)
+    
+    # Find phone numbers (e.g., (03) 1234 5678)
+    phone_numbers = re.findall(r'\(\d+\)\s?\d+\s?\d+', original_text)
+    special_patterns.extend(phone_numbers)
+    
+    # Find any standalone numbers
+    standalone_numbers = re.findall(r'\b\d+[.,]?\d*\b', original_text)
+    special_patterns.extend(standalone_numbers)
+    
+    # Sort patterns by length (descending) to replace longer patterns first
+    special_patterns.sort(key=len, reverse=True)
+    
+    # Create a modified translation with preserved special content
+    result = translated_text
+    
+    # Replace each special pattern in the translated text
+    for pattern in special_patterns:
+        # Escape special regex characters in the pattern
+        escaped_pattern = re.escape(pattern)
+        # Try to find a similar pattern in the translated text (allowing for some variation)
+        similar_pattern = re.search(r'\b\S*\d+\S*\b', result)
+        
+        if similar_pattern:
+            # Replace the similar pattern with the original pattern
+            result = result[:similar_pattern.start()] + pattern + result[similar_pattern.end():]
+        else:
+            # If no similar pattern is found, just append the special content
+            # This is a fallback and might not always produce ideal results
+            result += f" {pattern}"
+    
+    return result
 
 @app.post("/translate-pdf")
 async def translate_pdf(request: Request, file: UploadFile = File(...), target_language: str = Form(...), background_tasks: BackgroundTasks = None):

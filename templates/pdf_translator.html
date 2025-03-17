@@ -715,7 +715,8 @@
                     console.log("Translation task started with ID:", taskId);
                     
                     // Set up WebSocket connection for real-time progress updates
-                    const ws = new WebSocket(`ws://${window.location.host}/ws/progress/${taskId}`);
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/progress/${taskId}`);
                     
                     ws.onopen = function() {
                         console.log("WebSocket connection established");
