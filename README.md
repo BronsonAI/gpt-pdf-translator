@@ -20,10 +20,6 @@ If you find this project useful, please consider giving it a star on GitHub! You
 
 [![GitHub stars](https://img.shields.io/github/stars/Codehash001/gpt-pdf-translator.svg?style=social&label=Star)](https://github.com/Codehash001/gpt-pdf-translator)
 
-### Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Codehash001/gpt-pdf-translator&type=Date)](https://star-history.com/#Codehash001/gpt-pdf-translator&Date)
-
 ## 🤝 Contributing
 
 Contributions are welcome and greatly appreciated! Here's how you can contribute:
