@@ -14,6 +14,24 @@ A powerful web application that translates PDF documents to various languages wh
 - **Web Interface**: User-friendly interface for uploading and translating PDFs
 - **Intelligent Text Wrapping**: Handles cases where translated text is longer than the original
 
+## ⭐ Support This Project
+
+If you find this project useful, please consider giving it a star on GitHub! Your support helps make this project better.
+
+[![GitHub stars](https://img.shields.io/github/stars/hashirkz/pdf-translator.svg?style=social&label=Star)](https://github.com/hashirkz/pdf-translator)
+
+## 🤝 Contributing
+
+Contributions are welcome and greatly appreciated! Here's how you can contribute:
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+Feel free to check the [Issues](https://github.com/hashirkz/pdf-translator/issues) page for any open tasks or report bugs.
+
 ## Translation Examples
 
 ### Original Document
@@ -51,7 +69,7 @@ The PDF Translator follows these steps:
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/pdf-translator.git
+git clone https://github.com/hashirkz/pdf-translator.git
 cd pdf-translator
 ```
 
