@@ -2,7 +2,7 @@
 
 A powerful web application that translates PDF documents to various languages while preserving the original layout, formatting, and background colors.
 
-![PDF Translator Demo](example/translated.png)
+![PDF Translator Demo](example/demo.png)
 
 ## Features
 
