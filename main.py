@@ -7,13 +7,19 @@ import fitz  # PyMuPDF
 import requests
 import json
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, UploadFile, Form, Request, WebSocket, BackgroundTasks, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, Request, WebSocket, BackgroundTasks, WebSocketDisconnect, HTTPException, status, HTTPException, Depends
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pathlib import Path
 from tqdm import tqdm
 from bs4 import BeautifulSoup
+from typing import Tuple
+import boto3
+import botocore
+import secrets
 import tempfile
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,8 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # Load environment variables from .env file
 load_dotenv()
 
-# Get OpenAI API key from environment variables
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-1')
+bedrock = boto3.client('bedrock', region_name='us-east-1')
 
 # Dictionary to store translation progress
 translation_progress = {}
@@ -33,6 +39,7 @@ app = FastAPI(
     description="Translate PDF documents while preserving the original layout",
     version="1.0.0"
 )
+security = HTTPBasic()
 
 # Enable CORS for WebSocket connections
 app.add_middleware(
@@ -180,67 +187,72 @@ def translate_text(text, target_language):
     """
     if not text or not text.strip():
         return text
+
+    prompt = f"""
+    <INSTRUCTIONS>
+    You are a professional translator. Translate the following text to {LANGUAGES.get(target_language, target_language)}. 
+    IMPORTANT: Preserve all numbers, numerical values, dates, times, formatting, line breaks, and special characters exactly as they appear in the original text. Only respond with the translated text, nothing else.
+    </INSTRUCTIONS>
+    <TEXT>
+    {text}
+    </TEXT>"""
+
+    model = "anthropic.claude-sonnet-4-20250514-v1:0"
     
-    # Ensure API key is available
-    if not OPENAI_API_KEY:
-        print("Error: OpenAI API key is not set. Please check your .env file.")
-        return text
-    
-    # Call OpenAI API
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
+    # 1) Build the payload
+    rag_payload = {
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 10000,
+        "anthropic_version": "bedrock-2023-05-31"
     }
-    
-    payload = {
-        "model": "gpt-3.5-turbo",
-        "messages": [
-            {
-                "role": "system",
-                "content": f"You are a professional translator. Translate the following text to {LANGUAGES.get(target_language, target_language)}. IMPORTANT: Preserve all numbers, numerical values, dates, times, formatting, line breaks, and special characters exactly as they appear in the original text. Only respond with the translated text, nothing else."
-            },
-            {
-                "role": "user",
-                "content": text
-            }
-        ],
-        "temperature": 0.3
-    }
-    
+
+    # 2) Find the matching inference profile ARN
+    profile_arn = get_inference_profile_arn(model)
+    # 3) Invoke the model w21cith that profile
     try:
-        print(f"Sending translation request for text: '{text[:30]}...' to {target_language}")
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30  # Add timeout to prevent hanging requests
+        response = bedrock_client.invoke_model(
+            modelId=profile_arn,
+            body=json.dumps(rag_payload),
+            accept="application/json",
+            contentType="application/json"
         )
-        
-        # Check if the request was successful
-        if response.status_code != 200:
-            print(f"API error: Status code {response.status_code}, Response: {response.text}")
-            return text
-        
-        response_data = response.json()
-        
-        # Check if the response contains the expected data
-        if "choices" not in response_data or not response_data["choices"] or "message" not in response_data["choices"][0]:
-            print(f"Unexpected API response format: {response_data}")
-            return text
-        
-        translated_text = response_data["choices"][0]["message"]["content"]
-        print(f"Translation successful. Result: '{translated_text[:30]}...'")
-        return translated_text
-    
-    except requests.exceptions.Timeout:
-        print("Translation request timed out. The API might be experiencing high load.")
-        return text
-    except requests.exceptions.RequestException as e:
-        print(f"Request error during translation: {str(e)}")
-        return text
+    except botocore.exceptions.ClientError as error:
+        print("Client error during InvokeModel:", error)
+        raise
+
+    # 4) Parse and return
+    body_stream = response["body"]
+    return json.loads(body_stream.read())["content"][0].get('text')
+
+
+def get_inference_profile_arn(model_id: str) -> str:
+    """
+    Returns the inference profile ARN that supports the given model_id.
+
+    Args:
+        bedrock_client: boto3 client for 'bedrock'
+        model_id (str): e.g. "anthropic.claude-3-sonnet-20240229-v1:0"
+
+    Returns:
+        str: The matching inference profile ARN
+
+    Raises:
+        ValueError: if no matching inference profile is found
+    """
+    try:
+        response = bedrock.list_inference_profiles()
+        profiles = response.get("inferenceProfileSummaries", [])
+
+        for profile in profiles:
+            for model in profile.get("models", []):
+                model_arn = model.get("modelArn", "")
+                if model_arn.endswith(f"/{model_id}"):
+                    return profile["inferenceProfileArn"]
+
+        raise ValueError(f"No inference profile found for model ID: {model_id}")
+
     except Exception as e:
-        print(f"Translation error: {str(e)}")
-        return text
+        raise RuntimeError(f"Error fetching inference profiles: {e}")
 
 def batch_translate(texts, target_language, batch_size=10, task_id=None):
     """
@@ -1042,8 +1054,29 @@ async def get_progress(task_id: str):
     else:
         return {"status": "unknown", "progress": 0, "message": "Task not found"}
 
+def get_credentials_from_secrets_manager(secret_name: str = "translator_login") -> Tuple[str, str]:
+    client = boto3.client("secretsmanager")
+    response = client.get_secret_value(SecretId=secret_name)
+    secret = json.loads(response["SecretString"])
+    return secret["username"], secret["password"]
+
+
+# Cache credentials when app starts
+USERNAME, PASSWORD = get_credentials_from_secrets_manager()
+
+
+def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, USERNAME)
+    correct_password = secrets.compare_digest(credentials.password, PASSWORD)
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
+async def read_root(request: Request, _: HTTPBasicCredentials = Depends(verify_credentials)):
     """
     Root endpoint that serves the main application page.
     """
